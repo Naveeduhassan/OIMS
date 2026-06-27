@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { loginSchema } from '../utils/validation';
 import { ShoppingBag, Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
   const [showPwd, setShowPwd]   = useState(false);
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
@@ -17,6 +18,18 @@ export default function Login() {
   // Where to send user after login
   let from = location.state?.from || '/dashboard';
   const message = location.state?.message || '';
+
+  const {
+    register: formRegister,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
   // If going to dashboard but cart has items, redirect to checkout instead
   if (from === '/dashboard') {
@@ -35,13 +48,11 @@ export default function Login() {
     if (user) navigate(from, { replace: true });
   }, [user, navigate, from]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async (data) => {
     setError('');
-    if (!email || !password) return setError('Please fill in all fields.');
     setLoading(true);
     try {
-      await login({ email, password });
+      await login({ email: data.email, password: data.password });
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Invalid email or password.');
@@ -93,7 +104,7 @@ export default function Login() {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -105,13 +116,21 @@ export default function Login() {
                   id="email"
                   type="email"
                   autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  {...formRegister('email')}
                   placeholder="you@example.com"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10"
+                  className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                    errors.email
+                      ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                      : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                  }`}
                 />
               </div>
+              {errors.email && (
+                <p className="mt-1 text-xs text-rose-500 font-medium flex items-center gap-1">
+                  <AlertCircle size={12} className="shrink-0" />
+                  <span>{errors.email.message}</span>
+                </p>
+              )}
             </div>
 
             {/* Password */}
@@ -125,11 +144,13 @@ export default function Login() {
                   id="password"
                   type={showPwd ? 'text' : 'password'}
                   autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  {...formRegister('password')}
                   placeholder="••••••••"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10"
+                  className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-10 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                    errors.password
+                      ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                      : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                  }`}
                 />
                 <button
                   type="button"
@@ -139,6 +160,12 @@ export default function Login() {
                   {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="mt-1 text-xs text-rose-500 font-medium flex items-center gap-1">
+                  <AlertCircle size={12} className="shrink-0" />
+                  <span>{errors.password.message}</span>
+                </p>
+              )}
             </div>
 
             {/* Submit */}

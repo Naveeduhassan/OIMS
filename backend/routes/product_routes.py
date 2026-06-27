@@ -88,13 +88,18 @@ def low_stock(current_user_id):
         return server_error(e)
 
 
+from schemas import ProductSchema, ProductUpdateSchema, validate_schema
+
 @product_routes.route('', methods=['POST'])
 @token_required
 def create(current_user_id):
     try:
         if not has_permission(current_user_id, 'products.create'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(ProductSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         product, error = create_product(data)
         if error:
             return jsonify({"error": error}), 400
@@ -113,7 +118,10 @@ def update(current_user_id, product_id):
     try:
         if not has_permission(current_user_id, 'products.edit'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(ProductUpdateSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         success, error = update_product(product_id, data)
         if error:
             return jsonify({"error": error}), 400

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { registerSchema } from '../utils/validation';
 import {
   ShoppingBag, User, Mail, Lock, Phone, MapPin, Eye, EyeOff,
   ArrowRight, AlertCircle, CheckCircle2,
@@ -16,22 +19,36 @@ function strengthLabel(pwd) {
 }
 
 export default function Register() {
-  const [full_name, setFullName]             = useState('');
-  const [email, setEmail]                     = useState('');
-  const [phone, setPhone]                     = useState('');
-  const [address, setAddress]                 = useState('');
-  const [password, setPassword]               = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPwd, setShowPwd]                 = useState(false);
   const [showConfirm, setShowConfirm]         = useState(false);
   const [error, setError]                     = useState('');
   const [loading, setLoading]                 = useState(false);
 
-  const { register, user } = useAuth();
-  const navigate           = useNavigate();
-  const location           = useLocation();
-  let from                 = location.state?.from || '/dashboard';
-  const strength           = strengthLabel(password);
+  const { register: authRegister, user } = useAuth();
+  const navigate                         = useNavigate();
+  const location                         = useLocation();
+  let from                               = location.state?.from || '/dashboard';
+
+  const {
+    register: formRegister,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      full_name: '',
+      email: '',
+      phone: '',
+      address: '',
+      password: '',
+      confirmPassword: '',
+    },
+  });
+
+  const password = watch('password');
+  const confirmPassword = watch('confirmPassword');
+  const strength = strengthLabel(password);
 
   // If going to dashboard but cart has items, redirect to checkout instead
   if (from === '/dashboard') {
@@ -46,17 +63,17 @@ export default function Register() {
     if (user) navigate(from, { replace: true });
   }, [user, navigate, from]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onSubmit = async (data) => {
     setError('');
-    if (!full_name.trim()) return setError('Full name is required.');
-    if (phone && !/^[\d\+\-\s]{7,15}$/.test(phone)) return setError('Enter a valid phone number.');
-    if (password.length < 8 || !/[0-9]/.test(password)) return setError('Password must be at least 8 characters and contain a number.');
-    if (password !== confirmPassword) return setError('Passwords do not match.');
-
     setLoading(true);
     try {
-      await register({ full_name, email, password, phone, address });
+      await authRegister({
+        full_name: data.full_name,
+        email: data.email,
+        password: data.password,
+        phone: data.phone,
+        address: data.address,
+      });
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create account. Please try again.');
@@ -101,42 +118,58 @@ export default function Register() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
             {/* Full Name */}
-            <Field label="Full Name" id="full_name">
+            <Field label="Full Name" id="full_name" error={errors.full_name?.message}>
               <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input id="full_name" type="text" autoComplete="name" required
-                value={full_name} onChange={(e) => setFullName(e.target.value)}
+              <input id="full_name" type="text" autoComplete="name"
+                {...formRegister('full_name')}
                 placeholder="Ali Khan"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10" />
+                className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                  errors.full_name
+                    ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                    : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                }`} />
             </Field>
 
             {/* Email */}
-            <Field label="Email Address" id="email">
+            <Field label="Email Address" id="email" error={errors.email?.message}>
               <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input id="email" type="email" autoComplete="email" required
-                value={email} onChange={(e) => setEmail(e.target.value)}
+              <input id="email" type="email" autoComplete="email"
+                {...formRegister('email')}
                 placeholder="ali@gmail.com"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10" />
+                className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                  errors.email
+                    ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                    : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                }`} />
             </Field>
 
             {/* Phone */}
-            <Field label="Phone Number" id="phone" optional>
+            <Field label="Phone Number" id="phone" optional error={errors.phone?.message}>
               <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input id="phone" type="tel" autoComplete="tel"
-                value={phone} onChange={(e) => setPhone(e.target.value)}
+                {...formRegister('phone')}
                 placeholder="03XXXXXXXXX"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10" />
+                className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                  errors.phone
+                    ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                    : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                }`} />
             </Field>
 
             {/* Address */}
-            <Field label="City / Address" id="address" optional>
+            <Field label="City / Address" id="address" optional error={errors.address?.message}>
               <MapPin size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
               <input id="address" type="text" autoComplete="street-address"
-                value={address} onChange={(e) => setAddress(e.target.value)}
+                {...formRegister('address')}
                 placeholder="Lahore, Pakistan"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10" />
+                className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                  errors.address
+                    ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                    : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                }`} />
             </Field>
 
             {/* Password */}
@@ -144,15 +177,24 @@ export default function Register() {
               <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-1.5">Password</label>
               <div className="relative">
                 <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input id="password" type={showPwd ? 'text' : 'password'} autoComplete="new-password" required
-                  value={password} onChange={(e) => setPassword(e.target.value)}
+                <input id="password" type={showPwd ? 'text' : 'password'} autoComplete="new-password"
+                  {...formRegister('password')}
                   placeholder="Min. 8 chars, include a number"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-10 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#0f766e] focus:bg-white focus:ring-2 focus:ring-[#0f766e]/10" />
+                  className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-10 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
+                    errors.password
+                      ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
+                      : 'border-slate-200 focus:border-[#0f766e] focus:ring-[#0f766e]/10'
+                  }`} />
                 <button type="button" onClick={() => setShowPwd(v => !v)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {errors.password && (
+                <p className="mt-1 text-xs text-rose-500 font-medium flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.password.message}
+                </p>
+              )}
               {strength && (
                 <div className="mt-2">
                   <div className="h-1.5 w-full rounded-full bg-slate-100">
@@ -168,11 +210,11 @@ export default function Register() {
               <label htmlFor="confirm-password" className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm Password</label>
               <div className="relative">
                 <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input id="confirm-password" type={showConfirm ? 'text' : 'password'} autoComplete="new-password" required
-                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                <input id="confirm-password" type={showConfirm ? 'text' : 'password'} autoComplete="new-password"
+                  {...formRegister('confirmPassword')}
                   placeholder="Re-enter password"
                   className={`w-full rounded-xl border bg-slate-50/50 pl-10 pr-10 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:bg-white focus:ring-2 ${
-                    confirmPassword && password !== confirmPassword
+                    errors.confirmPassword
                       ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-100'
                       : confirmPassword && password === confirmPassword
                       ? 'border-emerald-300 focus:border-emerald-400 focus:ring-emerald-100'
@@ -186,6 +228,11 @@ export default function Register() {
                   <CheckCircle2 size={16} className="absolute right-9 top-1/2 -translate-y-1/2 text-emerald-500" />
                 )}
               </div>
+              {errors.confirmPassword && (
+                <p className="mt-1 text-xs text-rose-500 font-medium flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.confirmPassword.message}
+                </p>
+              )}
             </div>
 
             <p className="text-xs text-slate-400 text-center">
@@ -227,13 +274,19 @@ export default function Register() {
   );
 }
 
-function Field({ label, id, optional, children }) {
+function Field({ label, id, optional, error, children }) {
   return (
     <div>
       <label htmlFor={id} className="block text-sm font-semibold text-slate-700 mb-1.5">
         {label} {optional && <span className="text-slate-400 font-normal">(optional)</span>}
       </label>
       <div className="relative">{children}</div>
+      {error && (
+        <p className="mt-1 text-xs text-rose-500 font-medium flex items-center gap-1">
+          <AlertCircle size={12} className="shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
     </div>
   );
 }

@@ -35,9 +35,18 @@ from routes.stock_routes       import stock_routes
 from routes.report_routes      import report_routes
 from routes.po_routes        import po_routes
 
+from flask_compress import Compress
+from flask_talisman import Talisman
+
 # ── App factory ───────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Enable compression
+Compress(app)
+
+# Enable security headers (disable HTTPS force and strict CSP for development compatibility)
+Talisman(app, force_https=False, content_security_policy=None)
 
 # CORS — restricted to Vite frontend origins (OWASP: restrict origins)
 CORS(
@@ -56,6 +65,7 @@ CORS(
     allow_headers=["Content-Type", "Authorization"],
     supports_credentials=False,
 )
+
 
 # Rate limiter — OWASP: prevent brute-force on auth endpoints
 limiter = Limiter(

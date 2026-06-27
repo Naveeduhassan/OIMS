@@ -5,19 +5,21 @@ from flask import Blueprint, request, jsonify
 from controllers.user_controller import register_user, login_user, get_user_by_id, update_user, get_all_users
 from auth_middleware import token_required
 from utils import server_error
+from schemas import RegisterSchema, LoginSchema, ProfileUpdateSchema, validate_schema
 
 auth_routes = Blueprint('auth', __name__, url_prefix='/api/auth')
+
 
 @auth_routes.route('/register', methods=['POST'])
 def register():
     """Register a new user"""
     try:
-        data = request.get_json(silent=True, force=True)
-        if data is None:
-            return jsonify({"error": "Request body must be valid JSON"}), 400
+        raw = request.get_json(silent=True, force=True) or {}
+        data, error = validate_schema(RegisterSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
 
         user, error = register_user(data)
-        
         if error:
             return jsonify({"error": error}), 400
         
@@ -25,9 +27,9 @@ def register():
             "message": "User registered successfully",
             "data": user
         }), 201
-    
     except Exception as e:
         return server_error(e)
+
 
 from flask import current_app
 
@@ -38,12 +40,12 @@ def login():
         limiter.limit("5 per minute")(lambda: None)()
     """Login user and return token"""
     try:
-        data = request.get_json(silent=True, force=True)
-        if data is None:
-            return jsonify({"error": "Request body must be valid JSON with email and password"}), 400
+        raw = request.get_json(silent=True, force=True) or {}
+        data, error = validate_schema(LoginSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
 
         user, error = login_user(data)
-        
         if error:
             return jsonify({"error": error}), 401
         
@@ -51,7 +53,6 @@ def login():
             "message": "Login successful",
             "data": user
         }), 200
-    
     except Exception as e:
         return server_error(e)
 
@@ -68,7 +69,6 @@ def get_profile(current_user_id):
         return jsonify({
             "data": user
         }), 200
-    
     except Exception as e:
         return server_error(e)
 
@@ -77,20 +77,21 @@ def get_profile(current_user_id):
 def update_profile(current_user_id):
     """Update user profile"""
     try:
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(ProfileUpdateSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
+
         success, error = update_user(current_user_id, data)
-        
         if error:
             return jsonify({"error": error}), 400
         
         # Return updated user
         user, _ = get_user_by_id(current_user_id)
-        
         return jsonify({
             "message": "Profile updated successfully",
             "data": user
         }), 200
-    
     except Exception as e:
         return server_error(e)
 
@@ -134,22 +135,18 @@ def create_user(current_user_id):
     """Create a new user (admin only) — admin can set any role"""
     try:
         from db import execute_query, execute_insert
-        from utils import validate_email, validate_password, validate_required_fields, sanitize_input
-        from controllers.user_controller import hash_password, generate_token
+        from utils import sanitize_input
+        from controllers.user_controller import hash_password
+        from schemas import UserCreateSchema
 
         admin, _ = get_user_by_id(current_user_id)
         if not admin or admin['role'] != 'admin':
             return jsonify({"error": "Access denied. Admin only."}), 403
 
-        data = request.get_json()
-        valid, error = validate_required_fields(data, ['full_name', 'email', 'password'])
-        if not valid:
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(UserCreateSchema, raw)
+        if error:
             return jsonify({"error": error}), 400
-
-        if not validate_email(data['email']):
-            return jsonify({"error": "Invalid email format"}), 400
-        if not validate_password(data['password']):
-            return jsonify({"error": "Password must be at least 8 characters with letters and numbers"}), 400
 
         existing = execute_query(
             "SELECT id FROM users WHERE email = %s",
@@ -158,13 +155,9 @@ def create_user(current_user_id):
         if existing:
             return jsonify({"error": "Email already registered"}), 400
 
-        role = data.get('role', 'user')
-        if role not in ('admin', 'user', 'staff'):
-            return jsonify({"error": "Role must be 'admin', 'user', or 'staff'"}), 400
-
         user_id = execute_insert(
-            "INSERT INTO users (full_name, email, password, role) VALUES (%s, %s, %s, %s)",
-            (sanitize_input(data['full_name']), data['email'], hash_password(data['password']), role)
+            "INSERT INTO users (full_name, email, password, role, is_active) VALUES (%s, %s, %s, %s, %s)",
+            (sanitize_input(data['full_name']), data['email'], hash_password(data['password']), data['role'], data['is_active'])
         )
 
         new_user, _ = get_user_by_id(user_id)
@@ -179,8 +172,9 @@ def update_user_admin(current_user_id, target_user_id):
     """Update any user's info (admin only) — can change role, name, email, password"""
     try:
         from db import execute_update
-        from utils import validate_email, validate_password, sanitize_input
+        from utils import sanitize_input
         from controllers.user_controller import hash_password
+        from schemas import UserUpdateSchema
 
         admin, _ = get_user_by_id(current_user_id)
         if not admin or admin['role'] != 'admin':
@@ -190,7 +184,11 @@ def update_user_admin(current_user_id, target_user_id):
         if not target:
             return jsonify({"error": "User not found"}), 404
 
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(UserUpdateSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
+
         fields, values = [], []
 
         if 'full_name' in data and data['full_name']:
@@ -198,20 +196,14 @@ def update_user_admin(current_user_id, target_user_id):
             values.append(sanitize_input(data['full_name']))
 
         if 'email' in data and data['email']:
-            if not validate_email(data['email']):
-                return jsonify({"error": "Invalid email format"}), 400
             fields.append("email = %s")
             values.append(data['email'])
 
         if 'password' in data and data['password']:
-            if not validate_password(data['password']):
-                return jsonify({"error": "Password must be at least 8 characters with letters and numbers"}), 400
             fields.append("password = %s")
             values.append(hash_password(data['password']))
 
         if 'role' in data and data['role']:
-            if data['role'] not in ('admin', 'user', 'staff'):
-                return jsonify({"error": "Role must be 'admin', 'user', or 'staff'"}), 400
             # Prevent admin from removing their own admin role
             if target_user_id == current_user_id and data['role'] != 'admin':
                 return jsonify({"error": "You cannot remove your own admin role"}), 400

@@ -30,13 +30,18 @@ def get_history(product_id):
 
 # ── Admin/Staff ────────────────────────────────────────────────────────────────
 
+from schemas import StockAdjustSchema, validate_schema
+
 @stock_routes.route('/adjust', methods=['POST'])
 @token_required
 def adjust(current_user_id):
     try:
         if not has_permission(current_user_id, 'inventory.manage'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(StockAdjustSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         result, error = adjust_stock(
             data.get('product_id'),
             int(data.get('quantity', 0)),

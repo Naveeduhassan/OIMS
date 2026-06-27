@@ -37,6 +37,8 @@ def get(category_id):
         return server_error(e)
 
 
+from schemas import CategorySchema, validate_schema
+
 # ── Admin-only ────────────────────────────────────────────────────────────────
 
 @category_routes.route('', methods=['POST'])
@@ -45,7 +47,10 @@ def create(current_user_id):
     try:
         if not has_permission(current_user_id, 'inventory.manage'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(CategorySchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         category, error = create_category(data)
         if error:
             return jsonify({"error": error}), 400
@@ -60,7 +65,10 @@ def update(current_user_id, category_id):
     try:
         if not has_permission(current_user_id, 'inventory.manage'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(CategorySchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         success, error = update_category(category_id, data)
         if error:
             return jsonify({"error": error}), 400

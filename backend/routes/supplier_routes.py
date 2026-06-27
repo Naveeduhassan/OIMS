@@ -49,6 +49,8 @@ def get(supplier_id):
         return server_error(e)
 
 
+from schemas import SupplierSchema, validate_schema
+
 # ── Admin-only ────────────────────────────────────────────────────────────────
 
 @supplier_routes.route('', methods=['POST'])
@@ -57,7 +59,10 @@ def create(current_user_id):
     try:
         if not has_permission(current_user_id, 'suppliers.manage'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(SupplierSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         supplier, error = create_supplier(data)
         if error:
             return jsonify({"error": error}), 400
@@ -72,7 +77,10 @@ def update(current_user_id, supplier_id):
     try:
         if not has_permission(current_user_id, 'suppliers.manage'):
             return jsonify({"error": "Access denied."}), 403
-        data = request.get_json()
+        raw = request.get_json(silent=True) or {}
+        data, error = validate_schema(SupplierSchema, raw)
+        if error:
+            return jsonify({"error": error}), 400
         success, error = update_supplier(supplier_id, data)
         if error:
             return jsonify({"error": error}), 400
