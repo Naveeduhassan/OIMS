@@ -1,0 +1,3 @@
+@echo off
+echo Starting SOIMS Backend Server...
+python app.py

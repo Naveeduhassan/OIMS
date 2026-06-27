@@ -1,0 +1,20 @@
+# Root
+node_modules/
+
+# Backend
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/venv/
+backend/.env
+backend/static/uploads/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# OS
+.DS_Store
+Thumbs.db
+.qodo/
